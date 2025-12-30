@@ -3,394 +3,317 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台彩全方位即時看板 (V8 結構解析版)</title>
+    <title>台灣彩券即時開獎資訊看板</title>
     <style>
-        /* --- CSS 樣式區 --- */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f4f4f4; padding-bottom: 50px; }
-        
-        header {
-            background-color: #FFCC00;
-            border-bottom: 5px solid #009933;
-            padding: 15px;
-            text-align: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 100;
+        :root {
+            --tlc-yellow: #FEF200;
+            --tlc-red: #E60012;
+            --tlc-green: #009944;
+            --bg-color: #FFFDE7;
+            --card-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        
-        h1 { font-size: 1.6rem; color: #333; font-weight: 800; letter-spacing: 1px; }
-        .status-bar { font-size: 0.9rem; color: #444; margin-top: 8px; font-weight: 500; }
-        .refresh-count { color: #cc0000; font-weight: bold; font-size: 1.1em; }
-        .proxy-info { font-size: 0.75rem; color: #666; margin-top: 4px; }
+
+        body {
+            font-family: "Microsoft JhengHei", "Heiti TC", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid var(--tlc-red);
+            padding-bottom: 10px;
+        }
+
+        .header h1 {
+            color: var(--tlc-red);
+            margin: 0;
+            font-size: 2rem;
+            text-shadow: 1px 1px 0px #fff;
+        }
+
+        .status-bar {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 10px;
+        }
 
         .container {
-            max-width: 1200px;
-            margin: 25px auto;
-            padding: 0 15px;
+            max-width: 1000px;
+            margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
         }
 
-        .lottery-card {
+        /* Card Styles */
+        .lotto-card {
             background: #fff;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-            border-top: 5px solid #FFCC00;
-            display: flex;
-            flex-direction: column;
-            transition: transform 0.2s;
+            border-radius: 10px;
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            border: 1px solid #ddd;
         }
-        
-        .lottery-card:hover { transform: translateY(-5px); }
 
         .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: white;
+        }
+
+        .header-super { background-color: var(--tlc-green); }
+        .header-big { background-color: var(--tlc-yellow); color: #d32f2f; text-shadow: 0px 0px 0px; }
+        .header-539 { background-color: #2196F3; }
+
+        .card-body {
+            padding: 15px;
+            text-align: center;
+        }
+
+        .info-row {
             margin-bottom: 15px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.95rem;
+            color: #333;
+            border-bottom: 1px dashed #eee;
+            padding-bottom: 5px;
         }
 
-        .game-title-group { display: flex; flex-direction: column; }
-        .game-name { font-size: 1.4rem; font-weight: bold; color: #009933; margin-bottom: 4px; }
-        .draw-date { font-size: 0.85rem; color: #888; }
-        
-        .draw-term { 
-            background: #eee; 
-            color: #555; 
-            padding: 4px 10px; 
-            border-radius: 20px; 
-            font-size: 0.85rem; 
-            font-weight: bold; 
-            white-space: nowrap;
+        .info-label {
+            font-weight: bold;
+            color: #555;
         }
 
-        .numbers-container { 
-            display: flex; 
-            flex-wrap: wrap; 
-            gap: 10px; 
-            margin-bottom: 20px; 
-            flex-grow: 1;
-            align-items: center;
+        /* Ball Styles */
+        .balls-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 10px;
         }
-        
+
         .ball {
-            width: 40px;
-            height: 40px;
+            width: 35px;
+            height: 35px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 1.15rem;
-            box-shadow: inset -2px -2px 6px rgba(0,0,0,0.2), 2px 2px 5px rgba(0,0,0,0.1);
+            font-size: 1.1rem;
+            box-shadow: inset -2px -2px 5px rgba(0,0,0,0.2);
+            color: #333;
         }
 
-        .ball.normal {
-            background: radial-gradient(circle at 35% 35%, #fffacd, #ffd700);
-            border: 1px solid #e6b800;
-            color: #222;
-        }
+        .ball.green { background: radial-gradient(circle at 10px 10px, #81C784, #2E7D32); color: white; }
+        .ball.yellow { background: radial-gradient(circle at 10px 10px, #FFF59D, #FBC02D); }
+        .ball.red { background: radial-gradient(circle at 10px 10px, #E57373, #C62828); color: white; }
+        .ball.blue { background: radial-gradient(circle at 10px 10px, #64B5F6, #1565C0); color: white; }
 
-        .ball.special {
-            background: radial-gradient(circle at 35% 35%, #ff9999, #cc0000);
-            border: 1px solid #b30000;
-            color: #fff;
-            position: relative;
-            margin-left: 5px;
+        .special-section {
+            margin-top: 10px;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
         }
         
-        .ball.special::before {
-            content: '特';
-            position: absolute;
-            top: -8px;
-            font-size: 0.6rem;
-            color: #cc0000;
-            font-weight: bold;
-        }
-
-        .btn-history {
+        .special-label {
+            font-size: 0.8rem;
+            color: var(--tlc-red);
+            margin-bottom: 5px;
             display: block;
-            width: 100%;
-            padding: 12px;
-            background-color: #009933;
-            color: white;
-            text-align: center;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            transition: background 0.3s;
-            margin-top: auto; 
         }
-        
-        .btn-history:hover { background-color: #007a29; }
 
-        .loading, .error-msg { text-align: center; padding: 40px; color: #666; grid-column: 1 / -1; }
-        .error-msg { color: #d9534f; background: #fff; border-radius: 8px; border: 1px solid #ffcccc;}
-        .retry-btn { margin-top: 15px; padding: 8px 25px; background: #333; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .loading {
+            color: #999;
+            font-style: italic;
+        }
+
+        .error-msg {
+            color: red;
+            font-size: 0.8rem;
+            display: none;
+        }
+
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>台彩最新獎號看板</h1>
+    <div class="header">
+        <h1>台灣彩券即時看板</h1>
         <div class="status-bar">
-            狀態: <span id="last-update">初始化中...</span> | 
-            <span id="countdown" class="refresh-count">30</span> 秒後刷新
+            最後更新: <span id="last-updated">尚未更新</span> | 下次更新: <span id="countdown">30</span> 秒
         </div>
-        <div class="proxy-info" id="proxy-status">使用線路：自動偵測中...</div>
-    </header>
+        <div id="error-display" class="error-msg"></div>
+    </div>
 
-    <div id="app" class="container">
-        <div class="loading">
-            <h2>正在同步 Lotto-8 資料庫...</h2>
-            <p>正在進行 DOM 結構解析</p>
+    <div class="container">
+        <div class="lotto-card">
+            <div class="card-header header-super">威力彩</div>
+            <div class="card-body" id="super-lotto">
+                <div class="loading">載入中...</div>
+            </div>
+        </div>
+
+        <div class="lotto-card">
+            <div class="card-header header-big">大樂透</div>
+            <div class="card-body" id="big-lotto">
+                <div class="loading">載入中...</div>
+            </div>
+        </div>
+
+        <div class="lotto-card">
+            <div class="card-header header-539">今彩539</div>
+            <div class="card-body" id="lotto-539">
+                <div class="loading">載入中...</div>
+            </div>
         </div>
     </div>
 
     <script>
-        const REFRESH_INTERVAL = 30; 
-        const TARGET_URL = 'https://www.lotto-8.com/listlto.asp'; 
+        // 設定 CORS Proxy (使用 allorigins.win，它比較穩定且免費)
+        const PROXY_URL = 'https://api.allorigins.win/get?url=';
+        const TARGET_URL = encodeURIComponent('https://www.taiwanlottery.com.tw/index_new.aspx');
         
-        const PROXIES = [
-            'https://corsproxy.io/?',              
-            'https://api.allorigins.win/raw?url='  
-        ];
-        let currentProxyIndex = 0;
-        let timer = null;
-        let countdownVal = REFRESH_INTERVAL;
-        let countdownTimer = null;
+        let countdown = 30;
 
-        // 遊戲規則
-        const RULES = {
-            '威力彩': { count: 6, special: 1 },
-            '大樂透': { count: 6, special: 1 },
-            '今彩539': { count: 5, special: 0 },
-            '雙贏彩': { count: 12, special: 0 },
-            '3星彩': { count: 3, special: 0 },
-            '4星彩': { count: 4, special: 0 },
-            '38樂合彩': { count: 6, special: 0 },
-            '49樂合彩': { count: 6, special: 0 },
-            '39樂合彩': { count: 5, special: 0 }
-        };
-
-        document.addEventListener('DOMContentLoaded', () => {
-            fetchData();
-            startTimers();
-        });
-
-        function startTimers() {
-            if(countdownTimer) clearInterval(countdownTimer);
-            countdownTimer = setInterval(() => {
-                countdownVal--;
-                document.getElementById('countdown').innerText = countdownVal;
-                if (countdownVal <= 0) countdownVal = REFRESH_INTERVAL;
-            }, 1000);
-
-            if(timer) clearInterval(timer);
-            timer = setInterval(fetchData, REFRESH_INTERVAL * 1000);
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('last-updated').innerText = now.toLocaleString('zh-TW');
         }
 
-        async function fetchData() {
-            const container = document.getElementById('app');
-            const statusEl = document.getElementById('proxy-status');
-            
+        function renderBall(num, color) {
+            return `<div class="ball ${color}">${num}</div>`;
+        }
+
+        function parseLottoData(doc) {
             try {
-                countdownVal = REFRESH_INTERVAL;
-                document.getElementById('countdown').innerText = countdownVal;
-
-                const proxy = PROXIES[currentProxyIndex];
-                statusEl.innerText = `使用線路: ${currentProxyIndex === 0 ? '極速線路 (CorsProxy)' : '備援線路 (AllOrigins)'}`;
-
-                const fetchUrl = `${proxy}${encodeURIComponent(TARGET_URL)}?t=${Date.now()}`;
-                const response = await fetch(fetchUrl);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                // 1. 威力彩 (Super Lotto) - ID 通常是 contents_logo_02 區域
+                const superBlock = doc.querySelector('#contents_logo_02').parentElement.parentElement;
+                const superTerm = superBlock.querySelector('.font_black15').innerText.trim();
+                const superDate = superBlock.querySelector('.font_black15').nextElementSibling.innerText.trim().replace('開獎日期：','');
                 
-                const buffer = await response.arrayBuffer();
-                let decoder = new TextDecoder("utf-8");
-                let text = decoder.decode(buffer);
-                
-                if (!text.includes('彩') && !text.includes('期')) {
-                    decoder = new TextDecoder("big5");
-                    text = decoder.decode(buffer);
-                }
+                // 威力彩號碼 (第一區)
+                const superBalls1 = Array.from(superBlock.querySelectorAll('.ball_tx.ball_green')).slice(0, 6).map(el => el.innerText.trim());
+                // 威力彩號碼 (第二區)
+                const superRed = superBlock.querySelector('.ball_red').innerText.trim();
 
-                // 改用 DOM 解析
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(text, 'text/html');
-
-                const results = parseDomContent(doc);
-                
-                if (Object.keys(results).length === 0) {
-                    throw new Error('解析不到任何資料');
-                }
-
-                renderCards(results);
-                
-                const now = new Date();
-                document.getElementById('last-update').innerText = now.toLocaleTimeString();
-
-            } catch (error) {
-                console.error('Fetch error:', error);
-                if (currentProxyIndex < PROXIES.length - 1) {
-                    currentProxyIndex++;
-                    fetchData(); 
-                    return;
-                }
-                if (!container.querySelector('.lottery-card')) {
-                    container.innerHTML = `
-                        <div class="error-msg">
-                            <h3>讀取失敗 (${error.message})</h3>
-                            <button class="retry-btn" onclick="location.reload()">重新整理</button>
+                const superHtml = `
+                    <div class="info-row">
+                        <span class="info-label">期數：</span> ${superTerm}<br>
+                        <span class="info-label">日期：</span> ${superDate}
+                    </div>
+                    <div class="balls-container">
+                        ${superBalls1.map(n => renderBall(n, 'green')).join('')}
+                    </div>
+                    <div class="special-section">
+                        <span class="special-label">第二區</span>
+                        <div class="balls-container">
+                            ${renderBall(superRed, 'red')}
                         </div>
-                    `;
-                }
-                currentProxyIndex = 0;
+                    </div>
+                `;
+                document.getElementById('super-lotto').innerHTML = superHtml;
+
+                // 2. 大樂透 (Big Lotto) - ID 通常是 contents_logo_04 區域
+                const bigBlock = doc.querySelector('#contents_logo_04').parentElement.parentElement;
+                const bigTerm = bigBlock.querySelector('.font_black15').innerText.trim();
+                const bigDate = bigBlock.querySelector('.font_black15').nextElementSibling.innerText.trim().replace('開獎日期：','');
+                
+                // 大樂透號碼
+                const bigBalls = Array.from(bigBlock.querySelectorAll('.ball_tx.ball_yellow')).slice(0, 6).map(el => el.innerText.trim());
+                const bigSpecial = bigBlock.querySelector('.ball_red').innerText.trim();
+
+                const bigHtml = `
+                    <div class="info-row">
+                        <span class="info-label">期數：</span> ${bigTerm}<br>
+                        <span class="info-label">日期：</span> ${bigDate}
+                    </div>
+                    <div class="balls-container">
+                        ${bigBalls.map(n => renderBall(n, 'yellow')).join('')}
+                    </div>
+                    <div class="special-section">
+                        <span class="special-label">特別號</span>
+                        <div class="balls-container">
+                            ${renderBall(bigSpecial, 'red')}
+                        </div>
+                    </div>
+                `;
+                document.getElementById('big-lotto').innerHTML = bigHtml;
+
+                // 3. 今彩539 - ID 通常是 contents_logo_06 區域
+                const c539Block = doc.querySelector('#contents_logo_06').parentElement.parentElement;
+                const c539Term = c539Block.querySelector('.font_black15').innerText.trim();
+                const c539Date = c539Block.querySelector('.font_black15').nextElementSibling.innerText.trim().replace('開獎日期：','');
+                
+                const c539Balls = Array.from(c539Block.querySelectorAll('.ball_tx.ball_lemon')).slice(0, 5).map(el => el.innerText.trim());
+
+                const c539Html = `
+                    <div class="info-row">
+                        <span class="info-label">期數：</span> ${c539Term}<br>
+                        <span class="info-label">日期：</span> ${c539Date}
+                    </div>
+                    <div class="balls-container">
+                        ${c539Balls.map(n => renderBall(n, 'green')).join('')}
+                    </div>
+                `;
+                document.getElementById('lotto-539').innerHTML = c539Html;
+
+                // 清除錯誤訊息
+                document.getElementById('error-display').style.display = 'none';
+
+            } catch (e) {
+                console.error("解析錯誤:", e);
+                document.getElementById('error-display').innerText = "解析資料失敗，台彩官網可能已改版。";
+                document.getElementById('error-display').style.display = 'block';
             }
         }
 
-        // --- V8: 結構化 DOM 解析器 ---
-        function parseDomContent(doc) {
-            const results = {};
-            // 找出所有的 TR (表格列)
-            const rows = doc.querySelectorAll('tr');
-
-            // 遍歷所有列
-            rows.forEach(row => {
-                const rowText = row.innerText.trim();
+        async function fetchLotteryData() {
+            try {
+                // 重設倒數
+                countdown = 30;
                 
-                // 檢查這一列是否包含我們感興趣的遊戲
-                const gameName = Object.keys(RULES).find(name => rowText.includes(name));
+                // 透過 Proxy 抓取
+                const response = await fetch(PROXY_URL + TARGET_URL);
+                if (!response.ok) throw new Error('Network response was not ok');
                 
-                // 防止重複抓取 (有些網頁會有 header)
-                if (gameName && !results[gameName]) {
-                    
-                    // --- 欄位分析 ---
-                    // 取得這一列的所有儲存格
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length < 2) return; // 欄位太少跳過
+                const data = await response.json();
+                
+                // allorigins 回傳的內容在 contents 屬性中
+                const htmlText = data.contents;
+                
+                // 將純文字轉為 HTML Document 物件
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
 
-                    // 1. 抓期數 (Term)
-                    // 策略：遍歷所有欄位，尋找符合 "113xxxxxx" (9-10位數字) 或 "113xxx" 的欄位
-                    // 通常期數欄位是一個純數字，或者包含 "第...期"
-                    let term = '???';
-                    let date = '未知日期';
-                    let ballCandidates = [];
+                parseLottoData(doc);
+                updateTime();
 
-                    // 將欄位文字取出分析
-                    cells.forEach(cell => {
-                        let txt = cell.innerText.trim();
-                        
-                        // 移除連結內的文字干擾，如果它是 link
-                        if(cell.querySelector('a')) {
-                             txt = cell.querySelector('a').innerText.trim();
-                        }
-
-                        // 判斷是否為期數 (民國年 11x 開頭，長度 >= 6)
-                        // Regex: 開頭是 11，後面接數字，總長度 6-10
-                        const termMatch = txt.match(/^11[0-9]\d{3,8}$/);
-                        // 或者是 "第 xxx 期"
-                        const termTextMatch = txt.match(/第\s*(\d+)\s*期/);
-
-                        if (termTextMatch) {
-                            term = termTextMatch[1];
-                        } else if (termMatch && term === '???') {
-                            // 如果還沒找到期數，且這個數字很像期數
-                            term = txt;
-                        }
-
-                        // 判斷是否為日期 (有 / 或 -)
-                        if (txt.includes('/') || txt.includes('-')) {
-                            const dMatch = txt.match(/(\d{3,4}[\/-]\d{1,2}[\/-]\d{1,2})/);
-                            if(dMatch) date = dMatch[1];
-                        }
-
-                        // 收集這一列裡面的所有小數字 (球號)
-                        // 把非數字轉空白，然後切割
-                        const nums = txt.replace(/[^\d]/g, ' ').split(/\s+/);
-                        nums.forEach(n => {
-                            const val = parseInt(n, 10);
-                            // 球號通常在 1-99，且要排除掉剛被認出的期數
-                            if (!isNaN(val) && val > 0 && val <= 99 && n !== term) {
-                                ballCandidates.push(val);
-                            }
-                        });
-                    });
-
-                    // 2. 組合結果
-                    const rule = RULES[gameName];
-                    const totalNeeded = rule.count + rule.special;
-
-                    if (ballCandidates.length >= totalNeeded) {
-                        // 取最後 totalNeeded 個球 (因為前面的欄位可能有日期雜訊)
-                        const finalBalls = ballCandidates.slice(ballCandidates.length - totalNeeded);
-                        
-                        let finalNormal = [];
-                        let finalSpecial = [];
-
-                        if (rule.special > 0) {
-                            finalSpecial = [finalBalls.pop()];
-                            finalNormal = finalBalls;
-                        } else {
-                            finalNormal = finalBalls;
-                        }
-
-                        results[gameName] = {
-                            term: term,
-                            date: date,
-                            normal: finalNormal,
-                            special: finalSpecial
-                        };
-                    }
-                }
-            });
-
-            return results;
+            } catch (error) {
+                console.error('Fetch error:', error);
+                document.getElementById('error-display').innerText = "連線失敗，請稍後再試 (CORS Proxy 可能繁忙)。";
+                document.getElementById('error-display').style.display = 'block';
+            }
         }
 
-        function renderCards(data) {
-            const container = document.getElementById('app');
-            let html = '';
-            const order = ['威力彩', '大樂透', '今彩539', '雙贏彩', '3星彩', '4星彩', '38樂合彩', '49樂合彩', '39樂合彩'];
-            
-            order.forEach(name => {
-                if (data[name]) {
-                    html += createCardHtml(name, data[name]);
-                }
-            });
-            if(html === '') throw new Error('解析數據為空');
-            container.innerHTML = html;
-        }
+        // 倒數計時器邏輯
+        setInterval(() => {
+            countdown--;
+            if (countdown <= 0) countdown = 0;
+            document.getElementById('countdown').innerText = countdown;
+        }, 1000);
 
-        function createCardHtml(name, item) {
-            const historyLink = 'https://www.taiwanlottery.com.tw/lotto/index.aspx';
-            let ballsHtml = '';
-            item.normal.forEach(n => {
-                ballsHtml += `<div class="ball normal">${n.toString().padStart(2, '0')}</div>`;
-            });
-            item.special.forEach(n => {
-                ballsHtml += `<div class="ball special">${n.toString().padStart(2, '0')}</div>`;
-            });
+        // 主排程：每30秒更新一次 (30000毫秒)
+        setInterval(fetchLotteryData, 30000);
 
-            return `
-                <div class="lottery-card">
-                    <div class="card-header">
-                        <div class="game-title-group">
-                            <div class="game-name">${name}</div>
-                            <div class="draw-date">${item.date}</div>
-                        </div>
-                        <div class="draw-term">第 ${item.term} 期</div>
-                    </div>
-                    <div class="numbers-container">${ballsHtml}</div>
-                    <a href="${historyLink}" target="_blank" class="btn-history">查詢歷史獎號</a>
-                </div>
-            `;
-        }
+        // 初次執行
+        fetchLotteryData();
+
     </script>
 </body>
 </html>
