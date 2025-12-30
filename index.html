@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台彩最新獎號即時看板 (穩定版)</title>
+    <title>台彩全方位即時看板 (Yahoo來源)</title>
     <style>
-        /* --- CSS 樣式區 (保持台彩風格) --- */
+        /* --- CSS 樣式區 --- */
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: "Microsoft JhengHei", Arial, sans-serif; background-color: #f0f0f0; }
+        body { font-family: "Microsoft JhengHei", Arial, sans-serif; background-color: #f4f4f4; padding-bottom: 50px; }
         
+        /* 頂部導航 - 台彩風格 */
         header {
             background-color: #FFCC00;
             border-bottom: 5px solid #009933;
@@ -20,95 +21,115 @@
             z-index: 100;
         }
         
-        h1 { font-size: 1.5rem; color: #333; font-weight: bold; }
-        .status-bar { font-size: 0.9rem; color: #555; margin-top: 5px; }
-        .refresh-count { color: #cc0000; font-weight: bold; }
-        .source-note { font-size: 0.75rem; color: #888; margin-top: 3px; }
-
+        h1 { font-size: 1.6rem; color: #333; font-weight: 800; letter-spacing: 1px; }
+        .status-bar { font-size: 0.9rem; color: #444; margin-top: 8px; font-weight: 500; }
+        .refresh-count { color: #cc0000; font-weight: bold; font-size: 1.1em; }
+        
+        /* 內容容器 */
         .container {
             max-width: 1200px;
-            margin: 20px auto;
+            margin: 25px auto;
             padding: 0 15px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); /* RWD 自動排列 */
             gap: 20px;
         }
 
+        /* 卡片設計 */
         .lottery-card {
             background: #fff;
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border-top: 4px solid #FFCC00;
-            transition: transform 0.2s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            border-top: 5px solid #FFCC00;
             display: flex;
             flex-direction: column;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
         }
         
-        .lottery-card:hover { transform: translateY(-5px); }
+        .lottery-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 8px 15px rgba(0,0,0,0.15);
+        }
 
+        /* 遊戲標題區 */
         .card-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
         }
 
-        .game-name { font-size: 1.3rem; font-weight: bold; color: #009933; }
-        /* 日期與期數排版調整 */
-        .card-info { text-align: right; }
-        .draw-date { font-size: 0.85rem; color: #888; }
-        .draw-term { font-size: 0.9rem; color: #333; font-weight: bold; }
+        .game-title-group { display: flex; flex-direction: column; }
+        .game-name { font-size: 1.4rem; font-weight: bold; color: #009933; margin-bottom: 4px; }
+        .draw-date { font-size: 0.85rem; color: #888; display: flex; align-items: center; }
+        
+        /* 期數標籤 */
+        .draw-term { 
+            background: #eee; 
+            color: #555; 
+            padding: 4px 10px; 
+            border-radius: 20px; 
+            font-size: 0.85rem; 
+            font-weight: bold; 
+            white-space: nowrap;
+        }
 
+        /* 號碼區 */
         .numbers-container { 
             display: flex; 
             flex-wrap: wrap; 
-            gap: 8px; 
+            gap: 10px; 
             margin-bottom: 20px; 
-            flex-grow: 1; /* 讓內容撐開 */
-            align-content: flex-start;
+            flex-grow: 1;
+            align-items: center;
         }
         
+        /* 球體樣式 */
         .ball {
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 1.1rem;
-            box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            font-size: 1.15rem;
+            box-shadow: inset -2px -2px 6px rgba(0,0,0,0.2), 2px 2px 5px rgba(0,0,0,0.1);
+            user-select: none;
         }
 
+        /* 一般號碼 (黃) */
         .ball.normal {
-            background: radial-gradient(circle at 30% 30%, #ffd700, #ffcc00);
+            background: radial-gradient(circle at 35% 35%, #fffacd, #ffd700);
             border: 1px solid #e6b800;
-            color: #333;
+            color: #222;
         }
 
+        /* 特別號 (紅) */
         .ball.special {
-            background: radial-gradient(circle at 30% 30%, #ff4d4d, #cc0000);
+            background: radial-gradient(circle at 35% 35%, #ff9999, #cc0000);
             border: 1px solid #b30000;
-            color: white;
+            color: #fff;
             position: relative;
+            margin-left: 5px; /* 與一般號分開一點 */
         }
         
-        /* 特別號標示 */
-        .ball.special::after {
+        /* 特別號標記文字 */
+        .ball.special::before {
             content: '特';
             position: absolute;
-            top: -5px;
-            right: -5px;
+            top: -8px;
             font-size: 0.6rem;
-            background: #333;
-            color: #fff;
-            padding: 1px 3px;
-            border-radius: 4px;
+            color: #cc0000;
+            font-weight: bold;
         }
 
+        /* 查詢按鈕 */
         .btn-history {
             display: block;
             width: 100%;
@@ -117,35 +138,20 @@
             color: white;
             text-align: center;
             text-decoration: none;
-            border-radius: 5px;
+            border-radius: 8px;
             font-weight: bold;
+            letter-spacing: 1px;
             transition: background 0.3s;
-            margin-top: auto; /* 推到底部 */
+            margin-top: auto; 
         }
         
         .btn-history:hover { background-color: #007a29; }
 
-        .loading { text-align: center; padding: 50px; color: #666; }
-        .error-msg { 
-            color: #d9534f; 
-            background: #fdf7f7; 
-            padding: 20px; 
-            border: 1px solid #d9534f; 
-            border-radius: 5px;
-            text-align: center;
-            white-space: pre-wrap;
-            line-height: 1.6;
-        }
-        .retry-btn {
-            margin-top: 15px;
-            padding: 8px 20px;
-            cursor: pointer;
-            background: #333;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            font-size: 1rem;
-        }
+        /* 狀態訊息 */
+        .loading, .error-msg { text-align: center; padding: 40px; color: #666; grid-column: 1 / -1; }
+        .error-msg { color: #d9534f; background: #fff; border-radius: 8px; }
+        .retry-btn { margin-top: 15px; padding: 8px 25px; background: #333; color: white; border: none; border-radius: 4px; cursor: pointer; }
+
     </style>
 </head>
 <body>
@@ -153,31 +159,42 @@
     <header>
         <h1>台彩最新獎號看板</h1>
         <div class="status-bar">
-            狀態: <span id="last-update">等待連線...</span> | 
-            <span id="countdown" class="refresh-count">30</span> 秒後刷新
+            最後更新: <span id="last-update">初始化中...</span> | 
+            <span id="countdown" class="refresh-count">30</span> 秒後自動刷新
         </div>
-        <div class="source-note">資料來源：Lotto-8 (第三方備援線路)</div>
     </header>
 
     <div id="app" class="container">
         <div class="loading">
-            <h2>正在載入最新獎號...</h2>
-            <p>連線至備援資料庫中</p>
+            <h2>正在同步最新獎號資訊...</h2>
+            <p>資料來源：Yahoo 財經 (高穩定)</p>
         </div>
     </div>
 
     <script>
         // 設定
         const REFRESH_INTERVAL = 30; 
-        
-        // 使用 Lotto-8 作為資料來源 (結構簡單，不易擋)
-        const TARGET_URL = 'https://www.lotto-8.com/listlto.asp';
-        // 使用 corsproxy.io
-        const PROXY_URL = 'https://corsproxy.io/?'; 
+        // 目標：Yahoo 奇摩理財樂透頁面 (資料最全)
+        const TARGET_URL = 'https://tw.stock.yahoo.com/lotto';
+        const PROXY_URL = 'https://corsproxy.io/?';
 
         let timer = null;
         let countdownVal = REFRESH_INTERVAL;
         let countdownTimer = null;
+
+        // 遊戲規則定義 (幫助解析器知道該切多少顆球)
+        // normalCount: 一般號數量, hasSpecial: 是否有特別號
+        const GAME_RULES = {
+            '威力彩': { normalCount: 6, hasSpecial: true },
+            '大樂透': { normalCount: 6, hasSpecial: true },
+            '雙贏彩': { normalCount: 12, hasSpecial: false },
+            '今彩539': { normalCount: 5, hasSpecial: false },
+            '3星彩': { normalCount: 3, hasSpecial: false },
+            '4星彩': { normalCount: 4, hasSpecial: false },
+            '38樂合彩': { normalCount: 6, hasSpecial: false }, // 顯示開獎號碼
+            '49樂合彩': { normalCount: 6, hasSpecial: false },
+            '39樂合彩': { normalCount: 5, hasSpecial: false }
+        };
 
         document.addEventListener('DOMContentLoaded', () => {
             fetchData();
@@ -201,43 +218,28 @@
             try {
                 countdownVal = REFRESH_INTERVAL;
                 document.getElementById('countdown').innerText = countdownVal;
-                
-                // 1. 抓取資料
+
+                // 抓取 Yahoo 頁面
                 const fetchUrl = `${PROXY_URL}${encodeURIComponent(TARGET_URL)}`;
                 const response = await fetch(fetchUrl);
+                if (!response.ok) throw new Error('無法連線至資料來源');
                 
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-                // 2. 處理編碼 (重要：Lotto-8 可能是 Big5 或 UTF-8，需自動判斷)
-                const buffer = await response.arrayBuffer();
-                let decoder = new TextDecoder("utf-8");
-                let text = decoder.decode(buffer);
-
-                // 如果檢測到亂碼關鍵字 (例如 meta tag 說是 big5)，則重新解碼
-                // Lotto-8 傳統頁面常使用 Big5
-                if (text.includes('charset=big5') || text.includes('charset=Big5')) {
-                    decoder = new TextDecoder("big5");
-                    text = decoder.decode(buffer);
-                }
-
-                // 3. 解析 HTML
+                const text = await response.text();
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(text, 'text/html');
 
-                renderData(doc);
-
-                // 更新時間
+                renderYahooData(doc);
+                
                 const now = new Date();
-                document.getElementById('last-update').innerText = "更新完成 " + now.toLocaleTimeString();
+                document.getElementById('last-update').innerText = now.toLocaleTimeString();
 
             } catch (error) {
-                console.error('Fetch error:', error);
-                // 只有當畫面全空時才顯示錯誤，避免刷新時閃爍
+                console.error('Error:', error);
                 if (!container.querySelector('.lottery-card')) {
                     container.innerHTML = `
                         <div class="error-msg">
-                            <h3>讀取失敗 (${error.message})</h3>
-                            <p>請檢查您的網路連線。</p>
+                            <h3>讀取失敗</h3>
+                            <p>${error.message}</p>
                             <button class="retry-btn" onclick="fetchData()">重試</button>
                         </div>
                     `;
@@ -245,144 +247,179 @@
             }
         }
 
-        function renderData(doc) {
+        function renderYahooData(doc) {
             const container = document.getElementById('app');
             let cardsHtml = '';
             
-            // 定義要抓取的遊戲名稱關鍵字
-            const games = [
-                { name: '威力彩', type: 'super' },
-                { name: '大樂透', type: 'lotto' },
-                { name: '今彩539', type: '539' },
-                { name: '雙贏彩', type: 'win' },
-                { name: '3星彩', type: 'star' },
-                { name: '4星彩', type: 'star' },
-                { name: '38樂合彩', type: 'match' },
-                { name: '49樂合彩', type: 'match' },
-                { name: '39樂合彩', type: 'match' }
-            ];
-
-            // Lotto-8 的結構通常是表格 (table)，我們搜尋包含遊戲名稱的 td
-            // 這種方法比 CSS class 更穩固
-            const cells = doc.querySelectorAll('td');
+            // Yahoo 的結構通常是一區一區的 section 或 div
+            // 我們使用 "尋找包含遊戲名稱的元素" 這種通用策略
+            const gameNames = Object.keys(GAME_RULES);
             
-            // 用來記錄已經處理過的遊戲，避免重複顯示
+            // 用來避免重複抓取
             const processedGames = new Set();
 
-            cells.forEach(cell => {
-                const cellText = cell.innerText.trim();
+            // 1. 抓取所有可能的區塊 (Yahoo 通常用 List item 或 Section)
+            // 這裡我們掃描所有包含 "期" 的文字節點的父層，再往上找
+            // 但更簡單的是直接掃描頁面上的所有文字區塊
+            
+            // 在 Yahoo 頁面結構中，每個彩種通常在一個特定的 class 容器內
+            // 我們先抓取頁面上所有 h3 或類似標題，通常是彩種名稱
+            const titles = doc.querySelectorAll('h1, h2, h3, h4, div, span, a');
+
+            titles.forEach(el => {
+                const text = el.innerText ? el.innerText.trim() : '';
                 
-                // 檢查這個儲存格是否包含我們感興趣的遊戲名稱
-                const gameMatch = games.find(g => cellText.includes(g.name));
-                
-                if (gameMatch && !processedGames.has(gameMatch.name)) {
-                    // 找到遊戲名稱了！開始尋找附近的數據
-                    // 在 Lotto-8，數據通常在同一個 tr 內，或者下一個 tr
-                    const parentRow = cell.closest('tr');
+                // 如果這個元素的文字剛好是某個彩種名稱
+                if (gameNames.includes(text) && !processedGames.has(text)) {
                     
-                    if (parentRow) {
-                        // 抓取整列文字來分析
-                        const rowText = parentRow.innerText.replace(/\s+/g, ' ').trim();
-                        // 移除遊戲名稱，剩下的通常就是號碼和日期
-                        // 範例文字: "今彩539 第 112000123 期 開獎日期：2023/12/28 獎號：01,02,03,04,05"
-                        
-                        // 嘗試解析數據
-                        const data = parseRowData(rowText, gameMatch.type);
-                        
-                        if (data.isValid) {
-                            cardsHtml += createCard(gameMatch.name, data);
-                            processedGames.add(gameMatch.name);
+                    // 找到彩種名稱後，往上找父層容器 (Card Container)
+                    // 在 Yahoo 結構中，通常往上找 3-5 層就會包到整個區塊
+                    // 我們設定一個範圍，往上找直到找到包含 "期" 字樣的區域
+                    let parent = el.closest('li') || el.closest('section') || el.closest('div.items-center'); 
+                    
+                    // 如果找不到合適的父層，嘗試往上找幾層
+                    if(!parent) {
+                        let tempParent = el.parentElement;
+                        for(let i=0; i<6; i++) {
+                            if(tempParent && tempParent.innerText.includes('期')) {
+                                parent = tempParent;
+                                break;
+                            }
+                            tempParent = tempParent ? tempParent.parentElement : null;
+                        }
+                    }
+
+                    if (parent) {
+                        const cardData = parseYahooBlock(text, parent);
+                        if (cardData) {
+                            cardsHtml += createCardHtml(cardData);
+                            processedGames.add(text);
                         }
                     }
                 }
             });
 
             if (cardsHtml) {
+                // 按照我們想要的順序排序 (選擇性，目前依網頁順序)
                 container.innerHTML = cardsHtml;
             } else {
-                throw new Error('找不到獎號資料 (解析失敗)');
+                throw new Error('解析失敗：Yahoo 網頁結構可能已變更');
             }
         }
 
-        function parseRowData(text, type) {
-            // 1. 抓日期 (格式如 202X/XX/XX 或 112/XX/XX)
-            let date = '';
-            const dateMatch = text.match(/(\d{3,4}\/\d{1,2}\/\d{1,2})/);
-            if (dateMatch) date = dateMatch[1];
-
-            // 2. 抓期數 (格式如 第 123456 期)
-            let term = '';
-            const termMatch = text.match(/第\s*(\d+)\s*期/);
-            if (termMatch) term = termMatch[1];
-
-            // 3. 抓號碼 (這是最難的部分，因為格式不一)
-            // 移除日期、期數、中文，只留下數字串
-            let cleanText = text.replace(date, '').replace(term, '').replace(/第|期|開獎|日期|號碼|大小|順序|:|：/g, ' ');
+        function parseYahooBlock(gameName, element) {
+            const textContent = element.innerText; // 取得整個區塊文字
             
-            // 找出所有連續數字 (1-2位數)
-            let numbers = cleanText.match(/\b\d{1,2}\b/g);
+            // 1. 抓期數 (格式：第 112000xxx 期)
+            const termMatch = textContent.match(/第\s*(\d+)\s*期/);
+            const term = termMatch ? termMatch[1] : '???';
+
+            // 2. 抓日期 (格式：12/29 或 2023/12/29)
+            // Yahoo 通常在期數附近顯示日期
+            const dateMatch = textContent.match(/(\d{1,4}\/\d{1,2}\/\d{1,2})/);
+            const date = dateMatch ? dateMatch[1] : '';
+
+            // 3. 抓號碼
+            // Yahoo 的球通常是圓形的 div 或 span，且裡面只有數字
+            // 我們找出該區塊內所有 "純數字" 的節點
+            const candidates = element.querySelectorAll('span, div, li');
+            let numbers = [];
             
-            if (!numbers || numbers.length < 3) return { isValid: false };
-
-            // 根據遊戲類型分配號碼
-            let normalBalls = [];
-            let specialBalls = [];
-
-            if (type === 'super') { // 威力彩: 前6 + 後1
-                if (numbers.length >= 7) {
-                    specialBalls.push(numbers.pop()); // 最後一個是特別號
-                    normalBalls = numbers.slice(0, 6); // 取前6個
+            candidates.forEach(c => {
+                const t = c.innerText.trim();
+                // 判斷是否為 1-2 位數的數字，且排除看起來像日期或期數的
+                if (/^\d{1,2}$/.test(t)) {
+                    // 額外檢查：排除可能是日期的部分 (簡單過濾)
+                    // 通常球會有特定的 class，但在跨網域抓取時 class 可能不準
+                    // 我們收集所有數字，最後根據遊戲規則截取
+                    numbers.push(parseInt(t, 10));
                 }
-            } else if (type === 'lotto') { // 大樂透: 6 + 1
-                 if (numbers.length >= 7) {
-                    specialBalls.push(numbers.pop());
-                    normalBalls = numbers.slice(0, 6);
-                }
-            } else if (type === '539') { // 539: 5個號碼
-                normalBalls = numbers.slice(0, 5);
-            } else if (type === 'star') { // 星彩: 3或4個號碼
-                normalBalls = numbers; // 全部顯示
+            });
+
+            // 去除重複 (有時候 HTML 結構會導致同一個數字被抓兩次) 並過濾雜訊
+            // 但彩球可能有重複數字(如三星彩)，所以不能單純去重
+            // 我們假設連續出現的一組數字是獎號
+            // 這裡採用一個策略：取最後出現的那組符合數量要求的數字
+            // 因為 Yahoo 的排版，獎號通常在日期後面
+            
+            const rule = GAME_RULES[gameName];
+            if (!rule) return null;
+
+            const totalNeeded = rule.normalCount + (rule.hasSpecial ? 1 : 0);
+            
+            // 如果抓到的數字少於需求，代表失敗
+            if (numbers.length < totalNeeded) return null;
+
+            // 策略：取該區塊中「最後」出現的 N 個數字 (通常是最新的獎號)
+            // 修正：Yahoo 有時會列出「開獎順序」和「大小順序」，導致數字變兩倍
+            // 我們只取前段或後段。通常取「大小順序」(Sorted)，這通常在後面
+            // 但為了保險，我們先取最後 totalNeeded 個
+            
+            // 特別處理：三星彩/四星彩可能有重複號碼，且沒有排序問題
+            let finalNumbers = [];
+            
+            if (gameName.includes('星彩')) {
+                 // 星彩通常只顯示一次
+                 finalNumbers = numbers.slice(0, totalNeeded);
             } else {
-                // 其他 (樂合彩等)
-                normalBalls = numbers;
+                 // 樂透類，如果有兩組(開出順序/大小順序)，通常長度會是需求兩倍
+                 // 我們取前一組 (開出順序) 或後一組 (大小順序) 皆可
+                 // 這裡取最後一組 (通常是排序好的)
+                 finalNumbers = numbers.slice(numbers.length - totalNeeded, numbers.length);
+            }
+
+            // 分離特別號
+            let normal = [];
+            let special = [];
+
+            if (rule.hasSpecial) {
+                special.push(finalNumbers.pop()); // 最後一顆是特別號
+                normal = finalNumbers;
+            } else {
+                normal = finalNumbers;
             }
 
             return {
-                isValid: true,
-                date: date,
+                name: gameName,
                 term: term,
-                normal: normalBalls,
-                special: specialBalls
+                date: date,
+                normal: normal,
+                special: special
             };
         }
 
-        function createCard(name, data) {
-            const historyLink = 'https://www.taiwanlottery.com.tw/lotto/index.aspx';
+        function createCardHtml(data) {
+            const historyLink = `https://www.taiwanlottery.com.tw/lotto/index.aspx`; 
             
             let ballsHtml = '';
-            data.normal.forEach(n => {
-                // 補零 (例如 5 -> 05)
-                const numStr = n.toString().padStart(2, '0');
-                ballsHtml += `<div class="ball normal">${numStr}</div>`;
-            });
             
-            data.special.forEach(n => {
-                const numStr = n.toString().padStart(2, '0');
-                ballsHtml += `<div class="ball special">${numStr}</div>`;
+            data.normal.forEach(n => {
+                // 補零
+                const s = n.toString().padStart(2, '0');
+                ballsHtml += `<div class="ball normal">${s}</div>`;
             });
+
+            if (data.special && data.special.length > 0) {
+                data.special.forEach(n => {
+                    const s = n.toString().padStart(2, '0');
+                    ballsHtml += `<div class="ball special">${s}</div>`;
+                });
+            }
 
             return `
                 <div class="lottery-card">
                     <div class="card-header">
-                        <div class="game-name">${name}</div>
-                        <div class="card-info">
-                            <div class="draw-term">第 ${data.term} 期</div>
+                        <div class="game-title-group">
+                            <div class="game-name">${data.name}</div>
                             <div class="draw-date">${data.date}</div>
                         </div>
+                        <div class="draw-term">第 ${data.term} 期</div>
                     </div>
+                    
                     <div class="numbers-container">
                         ${ballsHtml}
                     </div>
+                    
                     <a href="${historyLink}" target="_blank" class="btn-history">查詢歷史獎號</a>
                 </div>
             `;
