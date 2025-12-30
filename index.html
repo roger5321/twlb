@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台彩最新獎號即時看板 (V2)</title>
+    <title>台彩最新獎號即時看板 (穩定版)</title>
     <style>
-        /* CSS reset & 基本設定 */
+        /* --- CSS 樣式區 (保持台彩風格) --- */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: "Microsoft JhengHei", Arial, sans-serif; background-color: #f0f0f0; }
         
-        /* 頂部導航列 */
         header {
             background-color: #FFCC00;
             border-bottom: 5px solid #009933;
@@ -24,18 +23,17 @@
         h1 { font-size: 1.5rem; color: #333; font-weight: bold; }
         .status-bar { font-size: 0.9rem; color: #555; margin-top: 5px; }
         .refresh-count { color: #cc0000; font-weight: bold; }
+        .source-note { font-size: 0.75rem; color: #888; margin-top: 3px; }
 
-        /* 主要內容區 */
         .container {
             max-width: 1200px;
             margin: 20px auto;
             padding: 0 15px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 20px;
         }
 
-        /* 獎號卡片 */
         .lottery-card {
             background: #fff;
             border-radius: 10px;
@@ -43,6 +41,8 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             border-top: 4px solid #FFCC00;
             transition: transform 0.2s;
+            display: flex;
+            flex-direction: column;
         }
         
         .lottery-card:hover { transform: translateY(-5px); }
@@ -56,22 +56,30 @@
             padding-bottom: 10px;
         }
 
-        .game-name { font-size: 1.2rem; font-weight: bold; color: #009933; }
+        .game-name { font-size: 1.3rem; font-weight: bold; color: #009933; }
+        /* 日期與期數排版調整 */
+        .card-info { text-align: right; }
         .draw-date { font-size: 0.85rem; color: #888; }
         .draw-term { font-size: 0.9rem; color: #333; font-weight: bold; }
 
-        /* 號碼球樣式 */
-        .numbers-container { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .numbers-container { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 8px; 
+            margin-bottom: 20px; 
+            flex-grow: 1; /* 讓內容撐開 */
+            align-content: flex-start;
+        }
         
         .ball {
-            width: 35px;
-            height: 35px;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 1.1rem;
             box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
         }
 
@@ -85,25 +93,39 @@
             background: radial-gradient(circle at 30% 30%, #ff4d4d, #cc0000);
             border: 1px solid #b30000;
             color: white;
+            position: relative;
+        }
+        
+        /* 特別號標示 */
+        .ball.special::after {
+            content: '特';
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 0.6rem;
+            background: #333;
+            color: #fff;
+            padding: 1px 3px;
+            border-radius: 4px;
         }
 
         .btn-history {
             display: block;
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             background-color: #009933;
             color: white;
             text-align: center;
             text-decoration: none;
             border-radius: 5px;
-            font-size: 0.9rem;
+            font-weight: bold;
             transition: background 0.3s;
+            margin-top: auto; /* 推到底部 */
         }
         
         .btn-history:hover { background-color: #007a29; }
 
-        /* 訊息顯示區 */
-        .loading { text-align: center; padding: 50px; color: #666; font-size: 1.2rem; }
+        .loading { text-align: center; padding: 50px; color: #666; }
         .error-msg { 
             color: #d9534f; 
             background: #fdf7f7; 
@@ -112,17 +134,18 @@
             border-radius: 5px;
             text-align: center;
             white-space: pre-wrap;
+            line-height: 1.6;
         }
         .retry-btn {
-            margin-top: 10px;
-            padding: 5px 15px;
+            margin-top: 15px;
+            padding: 8px 20px;
             cursor: pointer;
             background: #333;
             color: white;
             border: none;
             border-radius: 3px;
+            font-size: 1rem;
         }
-
     </style>
 </head>
 <body>
@@ -130,21 +153,28 @@
     <header>
         <h1>台彩最新獎號看板</h1>
         <div class="status-bar">
-            最後更新: <span id="last-update">-</span> | 
-            <span id="countdown" class="refresh-count">30</span> 秒後自動刷新
+            狀態: <span id="last-update">等待連線...</span> | 
+            <span id="countdown" class="refresh-count">30</span> 秒後刷新
         </div>
+        <div class="source-note">資料來源：Lotto-8 (第三方備援線路)</div>
     </header>
 
     <div id="app" class="container">
-        <div class="loading">正在連線至台彩伺服器...</div>
+        <div class="loading">
+            <h2>正在載入最新獎號...</h2>
+            <p>連線至備援資料庫中</p>
+        </div>
     </div>
 
     <script>
-        const REFRESH_INTERVAL = 30; // 秒
-        // 改用 corsproxy.io，它通常比 allorigins 更穩定且直接回傳 HTML
-        const PROXY_URL = 'https://corsproxy.io/?'; 
-        const TARGET_URL = 'https://www.taiwanlottery.com.tw/index_new.aspx';
+        // 設定
+        const REFRESH_INTERVAL = 30; 
         
+        // 使用 Lotto-8 作為資料來源 (結構簡單，不易擋)
+        const TARGET_URL = 'https://www.lotto-8.com/listlto.asp';
+        // 使用 corsproxy.io
+        const PROXY_URL = 'https://corsproxy.io/?'; 
+
         let timer = null;
         let countdownVal = REFRESH_INTERVAL;
         let countdownTimer = null;
@@ -171,48 +201,44 @@
             try {
                 countdownVal = REFRESH_INTERVAL;
                 document.getElementById('countdown').innerText = countdownVal;
-
-                // 加上時間戳記避免瀏覽器快取
-                const timestamp = new Date().getTime();
-                const fetchUrl = `${PROXY_URL}${encodeURIComponent(TARGET_URL)}?t=${timestamp}`;
-
+                
+                // 1. 抓取資料
+                const fetchUrl = `${PROXY_URL}${encodeURIComponent(TARGET_URL)}`;
                 const response = await fetch(fetchUrl);
                 
-                if (!response.ok) {
-                    throw new Error(`網路錯誤: ${response.status} ${response.statusText}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                // 2. 處理編碼 (重要：Lotto-8 可能是 Big5 或 UTF-8，需自動判斷)
+                const buffer = await response.arrayBuffer();
+                let decoder = new TextDecoder("utf-8");
+                let text = decoder.decode(buffer);
+
+                // 如果檢測到亂碼關鍵字 (例如 meta tag 說是 big5)，則重新解碼
+                // Lotto-8 傳統頁面常使用 Big5
+                if (text.includes('charset=big5') || text.includes('charset=Big5')) {
+                    decoder = new TextDecoder("big5");
+                    text = decoder.decode(buffer);
                 }
 
-                // corsproxy 直接回傳 text (HTML)，不像 allorigins 回傳 json
-                const htmlText = await response.text();
-
-                if (!htmlText || htmlText.length < 500) {
-                    throw new Error('抓取到的資料為空或不完整 (可能被台彩阻擋)');
-                }
-
+                // 3. 解析 HTML
                 const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlText, 'text/html');
-                
-                // 檢查是否真的抓到台彩頁面 (檢查標題關鍵字)
-                if (!doc.title.includes('台灣彩券')) {
-                   // 有時候 Proxy 會回傳 "Challenge" 頁面
-                   console.warn('Title mismatch:', doc.title);
-                }
+                const doc = parser.parseFromString(text, 'text/html');
 
                 renderData(doc);
-                
+
+                // 更新時間
                 const now = new Date();
-                document.getElementById('last-update').innerText = now.toLocaleTimeString();
+                document.getElementById('last-update').innerText = "更新完成 " + now.toLocaleTimeString();
 
             } catch (error) {
                 console.error('Fetch error:', error);
-                // 只有在畫面是空的時候才顯示大錯誤訊息，避免刷新時閃爍
+                // 只有當畫面全空時才顯示錯誤，避免刷新時閃爍
                 if (!container.querySelector('.lottery-card')) {
                     container.innerHTML = `
                         <div class="error-msg">
-                            <h3>讀取失敗</h3>
-                            <p>${error.message}</p>
-                            <p>可能原因：台彩官網暫時阻擋了代理伺服器連線。</p>
-                            <button class="retry-btn" onclick="fetchData()">手動重試</button>
+                            <h3>讀取失敗 (${error.message})</h3>
+                            <p>請檢查您的網路連線。</p>
+                            <button class="retry-btn" onclick="fetchData()">重試</button>
                         </div>
                     `;
                 }
@@ -221,92 +247,141 @@
 
         function renderData(doc) {
             const container = document.getElementById('app');
-            let hasData = false;
             let cardsHtml = '';
-
+            
+            // 定義要抓取的遊戲名稱關鍵字
             const games = [
-                { name: '威力彩', id: '#contents_logo_01' },
-                { name: '38樂合彩', id: '#contents_logo_02' },
-                { name: '大樂透', id: '#contents_logo_04' },
-                { name: '49樂合彩', id: '#contents_logo_05' },
-                { name: '今彩539', id: '#contents_logo_06' },
-                { name: '39樂合彩', id: '#contents_logo_07' },
-                { name: '3星彩', id: '#contents_logo_08' },
-                { name: '4星彩', id: '#contents_logo_09' },
-                { name: '雙贏彩', id: '#contents_logo_11' } 
+                { name: '威力彩', type: 'super' },
+                { name: '大樂透', type: 'lotto' },
+                { name: '今彩539', type: '539' },
+                { name: '雙贏彩', type: 'win' },
+                { name: '3星彩', type: 'star' },
+                { name: '4星彩', type: 'star' },
+                { name: '38樂合彩', type: 'match' },
+                { name: '49樂合彩', type: 'match' },
+                { name: '39樂合彩', type: 'match' }
             ];
 
-            games.forEach(game => {
-                const block = doc.querySelector(game.id);
-                if (block) {
-                    // 嘗試尋找包含資料的父容器
-                    const parentBox = block.closest('.contents_box02, .contents_box03, .contents_box04, .contents_box01'); 
-                    if (parentBox) {
-                        cardsHtml += extractGameInfo(game.name, parentBox);
-                        hasData = true;
+            // Lotto-8 的結構通常是表格 (table)，我們搜尋包含遊戲名稱的 td
+            // 這種方法比 CSS class 更穩固
+            const cells = doc.querySelectorAll('td');
+            
+            // 用來記錄已經處理過的遊戲，避免重複顯示
+            const processedGames = new Set();
+
+            cells.forEach(cell => {
+                const cellText = cell.innerText.trim();
+                
+                // 檢查這個儲存格是否包含我們感興趣的遊戲名稱
+                const gameMatch = games.find(g => cellText.includes(g.name));
+                
+                if (gameMatch && !processedGames.has(gameMatch.name)) {
+                    // 找到遊戲名稱了！開始尋找附近的數據
+                    // 在 Lotto-8，數據通常在同一個 tr 內，或者下一個 tr
+                    const parentRow = cell.closest('tr');
+                    
+                    if (parentRow) {
+                        // 抓取整列文字來分析
+                        const rowText = parentRow.innerText.replace(/\s+/g, ' ').trim();
+                        // 移除遊戲名稱，剩下的通常就是號碼和日期
+                        // 範例文字: "今彩539 第 112000123 期 開獎日期：2023/12/28 獎號：01,02,03,04,05"
+                        
+                        // 嘗試解析數據
+                        const data = parseRowData(rowText, gameMatch.type);
+                        
+                        if (data.isValid) {
+                            cardsHtml += createCard(gameMatch.name, data);
+                            processedGames.add(gameMatch.name);
+                        }
                     }
                 }
             });
 
-            if (hasData) {
+            if (cardsHtml) {
                 container.innerHTML = cardsHtml;
             } else {
-                throw new Error('無法解析網頁內容，台彩官網可能改版或回傳了手機版頁面。');
+                throw new Error('找不到獎號資料 (解析失敗)');
             }
         }
 
-        function extractGameInfo(name, element) {
-            // 安全選取文字的輔助函式
-            const getText = (selector) => element.querySelector(selector)?.innerText.trim() || '';
+        function parseRowData(text, type) {
+            // 1. 抓日期 (格式如 202X/XX/XX 或 112/XX/XX)
+            let date = '';
+            const dateMatch = text.match(/(\d{3,4}\/\d{1,2}\/\d{1,2})/);
+            if (dateMatch) date = dateMatch[1];
 
-            const term = getText('.font_black15') || '最新期數';
-            // 日期處理：移除 "開獎日期：" 字串
-            let date = getText('.font_black15 ~ span');
-            date = date.replace('開獎日期：', '').trim();
+            // 2. 抓期數 (格式如 第 123456 期)
+            let term = '';
+            const termMatch = text.match(/第\s*(\d+)\s*期/);
+            if (termMatch) term = termMatch[1];
 
-            let ballsHtml = '';
+            // 3. 抓號碼 (這是最難的部分，因為格式不一)
+            // 移除日期、期數、中文，只留下數字串
+            let cleanText = text.replace(date, '').replace(term, '').replace(/第|期|開獎|日期|號碼|大小|順序|:|：/g, ' ');
             
-            // 抓一般號碼 (tx) - 大部分遊戲
-            const normalBalls = element.querySelectorAll('.ball_tx');
-            normalBalls.forEach(ball => {
-                const num = ball.innerText.trim();
-                if(num) ballsHtml += `<div class="ball normal">${num}</div>`;
-            });
-
-            // 抓特別號 (red) - 威力彩/大樂透
-            const redBalls = element.querySelectorAll('.ball_red');
-            redBalls.forEach(ball => {
-                const num = ball.innerText.trim();
-                if(num) ballsHtml += `<div class="ball special">${num}</div>`;
-            });
+            // 找出所有連續數字 (1-2位數)
+            let numbers = cleanText.match(/\b\d{1,2}\b/g);
             
-            // 處理三星彩/四星彩 (它們的結構不同，通常沒有 ball_tx)
-            if (ballsHtml === '') {
-                 // 嘗試抓取 .font_black14.bold (這是三星彩/四星彩的數字樣式)
-                 // 但要小心不要抓到不相關的文字
-                 const potentialNums = element.querySelectorAll('.font_black14.bold');
-                 potentialNums.forEach(el => {
-                     const txt = el.innerText.trim();
-                     // 簡單判斷：如果是數字且長度 <= 2
-                     if (!isNaN(txt) && txt.length > 0) {
-                         ballsHtml += `<div class="ball normal">${txt}</div>`;
-                     }
-                 });
+            if (!numbers || numbers.length < 3) return { isValid: false };
+
+            // 根據遊戲類型分配號碼
+            let normalBalls = [];
+            let specialBalls = [];
+
+            if (type === 'super') { // 威力彩: 前6 + 後1
+                if (numbers.length >= 7) {
+                    specialBalls.push(numbers.pop()); // 最後一個是特別號
+                    normalBalls = numbers.slice(0, 6); // 取前6個
+                }
+            } else if (type === 'lotto') { // 大樂透: 6 + 1
+                 if (numbers.length >= 7) {
+                    specialBalls.push(numbers.pop());
+                    normalBalls = numbers.slice(0, 6);
+                }
+            } else if (type === '539') { // 539: 5個號碼
+                normalBalls = numbers.slice(0, 5);
+            } else if (type === 'star') { // 星彩: 3或4個號碼
+                normalBalls = numbers; // 全部顯示
+            } else {
+                // 其他 (樂合彩等)
+                normalBalls = numbers;
             }
 
+            return {
+                isValid: true,
+                date: date,
+                term: term,
+                normal: normalBalls,
+                special: specialBalls
+            };
+        }
+
+        function createCard(name, data) {
             const historyLink = 'https://www.taiwanlottery.com.tw/lotto/index.aspx';
+            
+            let ballsHtml = '';
+            data.normal.forEach(n => {
+                // 補零 (例如 5 -> 05)
+                const numStr = n.toString().padStart(2, '0');
+                ballsHtml += `<div class="ball normal">${numStr}</div>`;
+            });
+            
+            data.special.forEach(n => {
+                const numStr = n.toString().padStart(2, '0');
+                ballsHtml += `<div class="ball special">${numStr}</div>`;
+            });
 
             return `
                 <div class="lottery-card">
                     <div class="card-header">
-                        <div>
-                            <div class="game-name">${name}</div>
-                            <div class="draw-date">${date}</div>
+                        <div class="game-name">${name}</div>
+                        <div class="card-info">
+                            <div class="draw-term">第 ${data.term} 期</div>
+                            <div class="draw-date">${data.date}</div>
                         </div>
-                        <div class="draw-term">${term}</div>
                     </div>
                     <div class="numbers-container">
-                        ${ballsHtml || '<span style="color:#999">暫無資料</span>'}
+                        ${ballsHtml}
                     </div>
                     <a href="${historyLink}" target="_blank" class="btn-history">查詢歷史獎號</a>
                 </div>
