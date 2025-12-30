@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台彩全方位即時看板 (V5 全網掃描版)</title>
+    <title>台彩全方位即時看板 (V6 完美修正版)</title>
     <style>
-        /* --- CSS 樣式區 (維持原本設計) --- */
+        /* --- CSS 樣式區 (保持原樣) --- */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f4f4f4; padding-bottom: 50px; }
         
@@ -133,7 +133,6 @@
         .loading, .error-msg { text-align: center; padding: 40px; color: #666; grid-column: 1 / -1; }
         .error-msg { color: #d9534f; background: #fff; border-radius: 8px; border: 1px solid #ffcccc;}
         .retry-btn { margin-top: 15px; padding: 8px 25px; background: #333; color: white; border: none; border-radius: 4px; cursor: pointer; }
-
     </style>
 </head>
 <body>
@@ -156,12 +155,11 @@
 
     <script>
         const REFRESH_INTERVAL = 30; 
-        const TARGET_URL = 'https://www.lotto-8.com/listlto.asp'; // Lotto-8 總表
+        const TARGET_URL = 'https://www.lotto-8.com/listlto.asp'; 
         
-        // 定義兩條線路 (主線路與備援線路)
         const PROXIES = [
-            'https://corsproxy.io/?',              // 線路 1: 速度快，直接回傳
-            'https://api.allorigins.win/raw?url='  // 線路 2: 備援，兼容性高
+            'https://corsproxy.io/?',              
+            'https://api.allorigins.win/raw?url='  
         ];
         let currentProxyIndex = 0;
 
@@ -169,7 +167,6 @@
         let countdownVal = REFRESH_INTERVAL;
         let countdownTimer = null;
 
-        // 遊戲規則: 用來判斷要切幾顆球
         const RULES = {
             '威力彩': { count: 6, special: 1 },
             '大樂透': { count: 6, special: 1 },
@@ -207,32 +204,28 @@
                 countdownVal = REFRESH_INTERVAL;
                 document.getElementById('countdown').innerText = countdownVal;
 
-                // 嘗試連線
                 const proxy = PROXIES[currentProxyIndex];
                 statusEl.innerText = `使用線路: ${currentProxyIndex === 0 ? '極速線路 (CorsProxy)' : '備援線路 (AllOrigins)'}`;
 
-                // 加上時間戳避免快取
                 const fetchUrl = `${proxy}${encodeURIComponent(TARGET_URL)}?t=${Date.now()}`;
                 
                 const response = await fetch(fetchUrl);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 const buffer = await response.arrayBuffer();
-                
-                // 自動偵測編碼 (Lotto-8 經常是 Big5)
                 let decoder = new TextDecoder("utf-8");
                 let text = decoder.decode(buffer);
-                // 簡單檢查是否亂碼 (檢查是否有常見中文字)
+                
+                // 自動偵測 Big5
                 if (!text.includes('彩') && !text.includes('期')) {
                     decoder = new TextDecoder("big5");
                     text = decoder.decode(buffer);
                 }
 
-                // 開始解析
                 const results = parseTextContent(text);
                 
                 if (Object.keys(results).length === 0) {
-                    throw new Error('解析不到任何資料，可能網頁改版或被阻擋');
+                    throw new Error('解析不到任何資料');
                 }
 
                 renderCards(results);
@@ -243,97 +236,85 @@
             } catch (error) {
                 console.error('Fetch error:', error);
                 
-                // 如果失敗，嘗試切換線路
                 if (currentProxyIndex < PROXIES.length - 1) {
                     currentProxyIndex++;
-                    console.log('切換至備援線路...');
-                    fetchData(); // 立即重試
+                    fetchData(); 
                     return;
                 }
 
-                // 只有當畫面是空的才顯示錯誤
                 if (!container.querySelector('.lottery-card')) {
                     container.innerHTML = `
                         <div class="error-msg">
                             <h3>讀取失敗 (${error.message})</h3>
-                            <p>所有線路皆無法連線，請稍後再試。</p>
-                            <button class="retry-btn" onclick="location.reload()">重新整理頁面</button>
+                            <p>無法連線，請稍後再試。</p>
+                            <button class="retry-btn" onclick="location.reload()">重新整理</button>
                         </div>
                     `;
                 }
-                // 重置線路索引以便下次嘗試
                 currentProxyIndex = 0;
             }
         }
 
-        // --- 核心：全文掃描解析器 ---
+        // --- 修正後的解析器 ---
         function parseTextContent(htmlText) {
-            // 移除所有 HTML 標籤，只留純文字，但保留換行以便區隔
-            // 將 <br>, </tr>, </div> 換成換行符號
             let cleanText = htmlText
                 .replace(/<(br|tr|div|p)[^>]*>/gi, '\n')
-                .replace(/<[^>]*>/g, ' ') // 其他標籤換成空白
+                .replace(/<[^>]*>/g, ' ') 
                 .replace(/&nbsp;/g, ' ')
-                .replace(/\s+/g, ' '); // 合併多餘空白
+                .replace(/\s+/g, ' '); 
 
             const results = {};
             const games = Object.keys(RULES);
 
             games.forEach(game => {
-                // 在全文中搜尋遊戲名稱的位置
                 const index = cleanText.indexOf(game);
                 if (index !== -1) {
-                    // 截取遊戲名稱後方 200 個字的範圍來分析
-                    const context = cleanText.substring(index, index + 300);
+                    // 取較寬的文字範圍
+                    const context = cleanText.substring(index, index + 350);
                     
-                    // 1. 抓期數 (支援 "第 112000032 期" 或 "112000032期")
-                    const termMatch = context.match(/第\s*(\d+)\s*期/) || context.match(/(\d{9,})期/);
-                    const term = termMatch ? termMatch[1] : '???';
+                    // --- 修正重點：期數抓取邏輯 ---
+                    // 1. 嘗試抓取 "第 xxxx 期"
+                    // 2. 嘗試抓取 "xxxx期"
+                    // 3. 嘗試抓取單獨存在的 9 位數以上數字 (如 112000055)
+                    let term = '???';
+                    
+                    const termMatchExplicit = context.match(/第\s*(\d+)\s*期/) || context.match(/(\d{9,})期/);
+                    
+                    if (termMatchExplicit) {
+                        term = termMatchExplicit[1];
+                    } else {
+                        // 如果沒有 "期" 字，就找一個 9~10 位數的純數字 (通常是台彩期數格式)
+                        const rawNumMatch = context.match(/\b(\d{9,10})\b/);
+                        if (rawNumMatch) {
+                            term = rawNumMatch[1];
+                        }
+                    }
 
-                    // 2. 抓日期 (支援 112/12/30 或 2023-12-30)
+                    // --- 修正結束 ---
+
                     const dateMatch = context.match(/(\d{3,4}[\/-]\d{1,2}[\/-]\d{1,2})/);
                     const date = dateMatch ? dateMatch[1] : '未知日期';
 
-                    // 3. 抓號碼
-                    // 移除中文、日期、期數，只留數字
-                    // 注意：Lotto-8 的號碼通常在 "獎號：" 後面，或是單純一串數字
-                    // 我們把 context 裡面的非數字字元都變成空白
                     let numStr = context
-                        .replace(term, '') // 移除期數
-                        .replace(date, '') // 移除日期
-                        .replace(/[^\d]/g, ' '); // 非數字變空白
+                        .replace(term, '') 
+                        .replace(date, '') 
+                        .replace(/[^\d]/g, ' '); 
                     
-                    // 將字串切成數字陣列，過濾掉太長(像年份)或太短的
                     let allNums = numStr.trim().split(/\s+/)
-                        .filter(n => n.length > 0 && n.length <= 2) // 只留 1-2 位數
-                        .map(n => parseInt(n, 10)); // 轉數字
+                        .filter(n => n.length > 0 && n.length <= 2) 
+                        .map(n => parseInt(n, 10)); 
 
-                    // 根據規則取號
                     const rule = RULES[game];
                     const totalNeeded = rule.count + rule.special;
 
-                    // 如果抓到的數字夠多
                     if (allNums.length >= totalNeeded) {
-                        // 很多時候會抓到雜訊，通常號碼是連在一起的
-                        // 我們假設最後出現的那一組符合長度的序列是號碼 (Lotto-8 列表通常把號碼放最後)
-                        // 或者取第一組? Lotto-8 格式通常是: 名稱 -> 期數 -> 日期 -> 號碼
-                        // 所以取「最前面」連續的一組號碼比較合理
-                        // 但有時候期數前面會有雜號。
-                        // 為了保險，我們找「連續出現」且「符合數量」的一組
+                        const candidates = allNums.slice(0, totalNeeded);
                         
                         let finalNormal = [];
                         let finalSpecial = [];
-                        
-                        // 策略：直接取前 N 個看似合法的數字
-                        // 如果是三星彩/四星彩，數字可能重複，且可能包含 0
-                        
-                        // 簡單暴力法：取陣列中前 N 個 (濾掉太離譜的)
-                        // 為了避免抓到月份(如 12月)，通常日期已被 regex 移除
-                        
-                        const candidates = allNums.slice(0, totalNeeded);
-                        
+
                         if (rule.special > 0) {
-                            finalSpecial = [candidates.pop()]; // 最後一顆特別號
+                            finalSpecial = [candidates.pop()];
                             finalNormal = candidates;
                         } else {
                             finalNormal = candidates;
@@ -355,7 +336,6 @@
             const container = document.getElementById('app');
             let html = '';
             
-            // 依照我們想要的順序顯示
             const order = ['威力彩', '大樂透', '今彩539', '雙贏彩', '3星彩', '4星彩', '38樂合彩', '49樂合彩', '39樂合彩'];
             
             order.forEach(name => {
