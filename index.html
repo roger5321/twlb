@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台彩全方位即時看板 (V7 強力解析版)</title>
+    <title>台彩全方位即時看板 (V8 結構解析版)</title>
     <style>
-        /* --- CSS 樣式區 (維持一致) --- */
+        /* --- CSS 樣式區 --- */
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f4f4f4; padding-bottom: 50px; }
         
@@ -149,7 +149,7 @@
     <div id="app" class="container">
         <div class="loading">
             <h2>正在同步 Lotto-8 資料庫...</h2>
-            <p>正在進行智慧型數據解析</p>
+            <p>正在進行 DOM 結構解析</p>
         </div>
     </div>
 
@@ -157,17 +157,16 @@
         const REFRESH_INTERVAL = 30; 
         const TARGET_URL = 'https://www.lotto-8.com/listlto.asp'; 
         
-        // 雙重線路備援
         const PROXIES = [
             'https://corsproxy.io/?',              
             'https://api.allorigins.win/raw?url='  
         ];
         let currentProxyIndex = 0;
-
         let timer = null;
         let countdownVal = REFRESH_INTERVAL;
         let countdownTimer = null;
 
+        // 遊戲規則
         const RULES = {
             '威力彩': { count: 6, special: 1 },
             '大樂透': { count: 6, special: 1 },
@@ -209,7 +208,6 @@
                 statusEl.innerText = `使用線路: ${currentProxyIndex === 0 ? '極速線路 (CorsProxy)' : '備援線路 (AllOrigins)'}`;
 
                 const fetchUrl = `${proxy}${encodeURIComponent(TARGET_URL)}?t=${Date.now()}`;
-                
                 const response = await fetch(fetchUrl);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
@@ -217,13 +215,16 @@
                 let decoder = new TextDecoder("utf-8");
                 let text = decoder.decode(buffer);
                 
-                // 自動偵測 Big5
                 if (!text.includes('彩') && !text.includes('期')) {
                     decoder = new TextDecoder("big5");
                     text = decoder.decode(buffer);
                 }
 
-                const results = parseTextContent(text);
+                // 改用 DOM 解析
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+
+                const results = parseDomContent(doc);
                 
                 if (Object.keys(results).length === 0) {
                     throw new Error('解析不到任何資料');
@@ -236,18 +237,15 @@
 
             } catch (error) {
                 console.error('Fetch error:', error);
-                
                 if (currentProxyIndex < PROXIES.length - 1) {
                     currentProxyIndex++;
                     fetchData(); 
                     return;
                 }
-
                 if (!container.querySelector('.lottery-card')) {
                     container.innerHTML = `
                         <div class="error-msg">
                             <h3>讀取失敗 (${error.message})</h3>
-                            <p>無法連線，請稍後再試。</p>
                             <button class="retry-btn" onclick="location.reload()">重新整理</button>
                         </div>
                     `;
@@ -256,119 +254,108 @@
             }
         }
 
-        // --- V7 全新解析引擎 ---
-        function parseTextContent(htmlText) {
-            // 1. 預處理：將所有 HTML tag 轉為空白，保留文字
-            // 但保留重要的區隔符號，避免數字黏在一起
-            let cleanText = htmlText
-                .replace(/<(br|tr|div|p|td)[^>]*>/gi, ' | ') // 將區塊標籤變成 | 符號
-                .replace(/<[^>]*>/g, ' ') 
-                .replace(/&nbsp;/g, ' ')
-                .replace(/\s+/g, ' '); 
-
+        // --- V8: 結構化 DOM 解析器 ---
+        function parseDomContent(doc) {
             const results = {};
-            const games = Object.keys(RULES);
+            // 找出所有的 TR (表格列)
+            const rows = doc.querySelectorAll('tr');
 
-            games.forEach(game => {
-                const index = cleanText.indexOf(game);
-                if (index !== -1) {
-                    // 抓取遊戲名稱後方 300 字的範圍
-                    // 注意：Lotto-8 有時候日期在前面，有時候在後面，所以我們也抓前面一點點
-                    const startIdx = Math.max(0, index - 50);
-                    const context = cleanText.substring(startIdx, index + 350);
+            // 遍歷所有列
+            rows.forEach(row => {
+                const rowText = row.innerText.trim();
+                
+                // 檢查這一列是否包含我們感興趣的遊戲
+                const gameName = Object.keys(RULES).find(name => rowText.includes(name));
+                
+                // 防止重複抓取 (有些網頁會有 header)
+                if (gameName && !results[gameName]) {
                     
-                    // --- 智慧型數據提取 ---
-                    
-                    // 1. 抓日期 (格式 YYYY/MM/DD)
-                    const dateMatch = context.match(/(\d{3,4}[\/-]\d{1,2}[\/-]\d{1,2})/);
-                    const date = dateMatch ? dateMatch[1] : '未知日期';
+                    // --- 欄位分析 ---
+                    // 取得這一列的所有儲存格
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length < 2) return; // 欄位太少跳過
 
-                    // 2. 將字串中的所有「非數字」都變成空白，方便切割
-                    // 但要小心，不要把日期裡的數字混進去，所以先把日期字串消掉
-                    let tempText = context.replace(date, ''); 
-                    
-                    // 找出所有獨立的數字串
-                    // 正則解釋：找出單獨存在的數字
-                    let allNumbers = tempText.match(/\b\d+\b/g);
+                    // 1. 抓期數 (Term)
+                    // 策略：遍歷所有欄位，尋找符合 "113xxxxxx" (9-10位數字) 或 "113xxx" 的欄位
+                    // 通常期數欄位是一個純數字，或者包含 "第...期"
+                    let term = '???';
+                    let date = '未知日期';
+                    let ballCandidates = [];
 
-                    if (allNumbers) {
-                        let term = '???';
-                        let ballCandidates = [];
+                    // 將欄位文字取出分析
+                    cells.forEach(cell => {
+                        let txt = cell.innerText.trim();
+                        
+                        // 移除連結內的文字干擾，如果它是 link
+                        if(cell.querySelector('a')) {
+                             txt = cell.querySelector('a').innerText.trim();
+                        }
 
-                        // 3. 分類數字：期數 vs 號碼球
-                        allNumbers.forEach(numStr => {
-                            const num = parseInt(numStr, 10);
-                            
-                            // 邏輯：
-                            // 期數通常大於 100000 (如 112000055)
-                            // 號碼球通常在 1~99 之間
-                            
-                            if (num > 100000) {
-                                // 這一定是期數
-                                // 如果有多個大數字，取第一個或最大的 (通常只有一個)
-                                term = numStr; 
-                            } else if (num >= 0 && num <= 99) {
-                                // 可能是號碼球，或是日期的殘留 (如月/日)
-                                // 為了保險，我們先收集起來
-                                ballCandidates.push(num);
+                        // 判斷是否為期數 (民國年 11x 開頭，長度 >= 6)
+                        // Regex: 開頭是 11，後面接數字，總長度 6-10
+                        const termMatch = txt.match(/^11[0-9]\d{3,8}$/);
+                        // 或者是 "第 xxx 期"
+                        const termTextMatch = txt.match(/第\s*(\d+)\s*期/);
+
+                        if (termTextMatch) {
+                            term = termTextMatch[1];
+                        } else if (termMatch && term === '???') {
+                            // 如果還沒找到期數，且這個數字很像期數
+                            term = txt;
+                        }
+
+                        // 判斷是否為日期 (有 / 或 -)
+                        if (txt.includes('/') || txt.includes('-')) {
+                            const dMatch = txt.match(/(\d{3,4}[\/-]\d{1,2}[\/-]\d{1,2})/);
+                            if(dMatch) date = dMatch[1];
+                        }
+
+                        // 收集這一列裡面的所有小數字 (球號)
+                        // 把非數字轉空白，然後切割
+                        const nums = txt.replace(/[^\d]/g, ' ').split(/\s+/);
+                        nums.forEach(n => {
+                            const val = parseInt(n, 10);
+                            // 球號通常在 1-99，且要排除掉剛被認出的期數
+                            if (!isNaN(val) && val > 0 && val <= 99 && n !== term) {
+                                ballCandidates.push(val);
                             }
                         });
+                    });
 
-                        // 4. 根據遊戲規則，從候選球中取出正確數量的獎號
-                        const rule = RULES[game];
-                        const totalNeeded = rule.count + rule.special;
+                    // 2. 組合結果
+                    const rule = RULES[gameName];
+                    const totalNeeded = rule.count + rule.special;
+
+                    if (ballCandidates.length >= totalNeeded) {
+                        // 取最後 totalNeeded 個球 (因為前面的欄位可能有日期雜訊)
+                        const finalBalls = ballCandidates.slice(ballCandidates.length - totalNeeded);
                         
-                        // Lotto-8 的順序通常是: 期數 -> (日期) -> 號碼
-                        // 或者是: 名稱 -> 期數 -> ...
-                        // 我們假設 ballCandidates 裡面包含了一組連續的獎號
-                        // 策略：取陣列中「連續出現」的最後 N 個數字 (因為日期/月份的雜訊通常在前面)
-                        // 或者是：取前 N 個？
-                        
-                        // Lotto-8 結構：名稱 | 期數 | 日期 | 01 | 02 | 03 ...
-                        // 所以號碼通常在最後面。
-                        // 如果期數沒抓到 (例如三星彩期數較短 112032)，則嘗試在 >= 6 位數尋找
-                        // 如果還是沒抓到，就嘗試找 > 100 的數字
-                        if (term === '???') {
-                             const potentialTerm = allNumbers.find(n => n.length >= 6);
-                             if (potentialTerm) term = potentialTerm;
+                        let finalNormal = [];
+                        let finalSpecial = [];
+
+                        if (rule.special > 0) {
+                            finalSpecial = [finalBalls.pop()];
+                            finalNormal = finalBalls;
+                        } else {
+                            finalNormal = finalBalls;
                         }
 
-                        if (ballCandidates.length >= totalNeeded) {
-                            // 取最後 totalNeeded 個數字 (避開前面的月份/日期雜訊)
-                            // 例如: 12 (月) 25 (日) 01 02 03 04 05 ...
-                            // 我們要後面的
-                            let finalBalls = ballCandidates.slice(ballCandidates.length - totalNeeded);
-                            
-                            // 特殊處理：三星彩/四星彩的數字可能重複，且可能包含0
-                            // Lotto-8 上面的三星彩號碼是分開的嗎？是的
-                            
-                            let finalNormal = [];
-                            let finalSpecial = [];
-
-                            if (rule.special > 0) {
-                                finalSpecial = [finalBalls.pop()];
-                                finalNormal = finalBalls;
-                            } else {
-                                finalNormal = finalBalls;
-                            }
-
-                            results[game] = {
-                                term: term,
-                                date: date,
-                                normal: finalNormal,
-                                special: finalSpecial
-                            };
-                        }
+                        results[gameName] = {
+                            term: term,
+                            date: date,
+                            normal: finalNormal,
+                            special: finalSpecial
+                        };
                     }
                 }
             });
+
             return results;
         }
 
         function renderCards(data) {
             const container = document.getElementById('app');
             let html = '';
-            
             const order = ['威力彩', '大樂透', '今彩539', '雙贏彩', '3星彩', '4星彩', '38樂合彩', '49樂合彩', '39樂合彩'];
             
             order.forEach(name => {
@@ -376,22 +363,18 @@
                     html += createCardHtml(name, data[name]);
                 }
             });
-
             if(html === '') throw new Error('解析數據為空');
             container.innerHTML = html;
         }
 
         function createCardHtml(name, item) {
             const historyLink = 'https://www.taiwanlottery.com.tw/lotto/index.aspx';
-            
             let ballsHtml = '';
             item.normal.forEach(n => {
-                const s = n.toString().padStart(2, '0');
-                ballsHtml += `<div class="ball normal">${s}</div>`;
+                ballsHtml += `<div class="ball normal">${n.toString().padStart(2, '0')}</div>`;
             });
             item.special.forEach(n => {
-                const s = n.toString().padStart(2, '0');
-                ballsHtml += `<div class="ball special">${s}</div>`;
+                ballsHtml += `<div class="ball special">${n.toString().padStart(2, '0')}</div>`;
             });
 
             return `
@@ -403,9 +386,7 @@
                         </div>
                         <div class="draw-term">第 ${item.term} 期</div>
                     </div>
-                    <div class="numbers-container">
-                        ${ballsHtml}
-                    </div>
+                    <div class="numbers-container">${ballsHtml}</div>
                     <a href="${historyLink}" target="_blank" class="btn-history">查詢歷史獎號</a>
                 </div>
             `;
